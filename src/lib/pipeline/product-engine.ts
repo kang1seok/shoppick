@@ -131,7 +131,7 @@ export async function searchAndScoreProducts(keywords: Keyword[]): Promise<Artic
         } else {
           try {
             // 딥링크 생성 호출 (subId로 키워드 전달 가능)
-            const subId = kw.keyword.slice(0, 20); // 최대 길이 제한 고려
+            const subId = kw.keyword.slice(0, 20).replace(/\s+/g, '_'); // 공백을 밑줄로 치환
             deeplinkUrl = await generateDeeplink(p.productUrl, subId);
             
             await supabaseAdmin.from("affiliate_links").insert({
