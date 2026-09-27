@@ -16,7 +16,10 @@ export const metadata: Metadata = {
   description: "쿠팡 최저가 비교 및 추천 가이드",
   verification: {
     google: "5trNR9GiVrhY6xoz_KMKT6V7xJevNko_ISrWO5f1-Oo",
-  }
+    other: {
+      "naver-site-verification": "4e2d4314788a5b526ee4737cc956c30b974eb5ad",
+    },
+  },
 };
 
 export default function RootLayout({
