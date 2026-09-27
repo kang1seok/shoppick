@@ -14,6 +14,9 @@ const notoSansKr = Noto_Sans_KR({
 export const metadata: Metadata = {
   title: "산다만다 - AI 자동화 쇼핑 가이드",
   description: "쿠팡 최저가 비교 및 추천 가이드",
+  verification: {
+    google: "5trNR9GiVrhY6xoz_KMKT6V7xJevNko_ISrWO5f1-Oo",
+  }
 };
 
 export default function RootLayout({
