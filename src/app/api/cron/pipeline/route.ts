@@ -4,6 +4,9 @@ import { searchAndScoreProducts } from "@/lib/pipeline/product-engine";
 import { generateArticles } from "@/lib/pipeline/content-engine";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
+export const maxDuration = 60; // Vercel 서버리스 함수 타임아웃을 최대 60초로 연장
+
+
 export async function GET(request: Request) {
   // 인증: CRON_SECRET 헤더 검증
   const authHeader = request.headers.get("authorization");

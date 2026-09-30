@@ -37,23 +37,27 @@ export async function selectDailyKeywords(): Promise<Keyword[]> {
   console.log(`[Keyword Engine] Starting daily keyword selection...`);
 
   try {
-    // 1. seed 키워드 조회
-    const { data: seedKeywords, error: seedError } = await supabaseAdmin
+    // 1. 아직 처리되지 않은(pending 또는 selected) 키워드 조회
+    const { data: pendingKeywords, error: pendingError } = await supabaseAdmin
       .from("keywords")
       .select("*")
       .in("status", ["pending", "selected"])
+      .limit(50);
+
+    if (pendingError) throw pendingError;
+
+    // 1.5. 씨앗(seed) 키워드는 상태 상관없이 가져와서 연관 검색어 발굴의 재료로 씁니다.
+    const { data: seedKeywords } = await supabaseAdmin
+      .from("keywords")
+      .select("*")
       .eq("source", "seed");
 
-    if (seedError) throw seedError;
-    if (!seedKeywords || seedKeywords.length === 0) {
-      console.log(`[Keyword Engine] No seed keywords found.`);
-      return [];
-    }
+    const baseKeywordsForRelated = seedKeywords && seedKeywords.length > 0 ? seedKeywords : (pendingKeywords || []);
 
-    const allKeywordsToScore: Keyword[] = [...seedKeywords];
+    const allKeywordsToScore: Keyword[] = pendingKeywords ? [...pendingKeywords] : [];
 
     // 2. 연관 검색어 수집 및 저장
-    for (const seed of seedKeywords) {
+    for (const seed of baseKeywordsForRelated) {
       const related = await getRelatedKeywords(seed.keyword);
       if (related.length > 0) {
         const insertData = related.map((kw) => ({
@@ -87,6 +91,11 @@ export async function selectDailyKeywords(): Promise<Keyword[]> {
     }
 
     console.log(`[Keyword Engine] Total keywords to score: ${allKeywordsToScore.length}`);
+    
+    if (allKeywordsToScore.length === 0) {
+      console.log(`[Keyword Engine] No keywords to score.`);
+      return [];
+    }
 
     // 3. 점수화 로직 실행
     const endDate = new Date().toISOString().split("T")[0];
@@ -137,9 +146,9 @@ export async function selectDailyKeywords(): Promise<Keyword[]> {
     // 4. 정렬 및 DB 업데이트
     scoredKeywords.sort((a, b) => b.final_score - a.final_score);
     
-    // 상위 최대 10개 선택
-    const selected = scoredKeywords.slice(0, 10);
-    const rejected = scoredKeywords.slice(10);
+    // 상위 최대 2개 선택 (Vercel 타임아웃 60초 내에 안전하게 완료되도록 제한)
+    const selected = scoredKeywords.slice(0, 2);
+    const rejected = scoredKeywords.slice(2);
     
     console.log(`[Keyword Engine] Selected ${selected.length} keywords.`);
     

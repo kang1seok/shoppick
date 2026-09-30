@@ -89,6 +89,16 @@ export async function generateArticles(data: ArticleProduct[]): Promise<Article[
 
       if (apError) throw apError;
 
+      // 키워드 상태를 "used"로 변경하여 다음 파이프라인 실행 시 다시 선택되지 않도록 방지
+      const { error: kwUpdateError } = await supabaseAdmin
+        .from("keywords")
+        .update({ status: "used" })
+        .eq("id", item.keyword.id);
+
+      if (kwUpdateError) {
+        console.error(`[Content Engine] Failed to update keyword status to used:`, kwUpdateError);
+      }
+
       console.log(`[Content Engine] Successfully created draft article: ${article.title} (slug: ${slug})`);
       generatedArticles.push(article);
 
