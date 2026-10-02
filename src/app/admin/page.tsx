@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminDashboard() {
   const [{ count: articleCount }, { count: keywordCount }] = await Promise.all([
     supabaseAdmin.from("articles").select("*", { count: "exact", head: true }),

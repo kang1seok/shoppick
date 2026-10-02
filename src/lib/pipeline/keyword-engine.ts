@@ -46,13 +46,15 @@ export async function selectDailyKeywords(): Promise<Keyword[]> {
 
     if (pendingError) throw pendingError;
 
-    // 1.5. 씨앗(seed) 키워드는 상태 상관없이 가져와서 연관 검색어 발굴의 재료로 씁니다.
-    const { data: seedKeywords } = await supabaseAdmin
+    // 1.5. 연관 검색어 발굴 재료로 기존 키워드들 중 무작위 5개를 선택
+    // (매일 같은 seed만 쓰면 새로운 연관검색어가 발굴되지 않으므로)
+    const { data: randomKeywords } = await supabaseAdmin
       .from("keywords")
       .select("*")
-      .eq("source", "seed");
+      .limit(50); // 일단 50개 가져와서 무작위로 섞은 후 5개 선택
 
-    const baseKeywordsForRelated = seedKeywords && seedKeywords.length > 0 ? seedKeywords : (pendingKeywords || []);
+    const shuffled = (randomKeywords || []).sort(() => 0.5 - Math.random());
+    const baseKeywordsForRelated = shuffled.slice(0, 5);
 
     const allKeywordsToScore: Keyword[] = pendingKeywords ? [...pendingKeywords] : [];
 

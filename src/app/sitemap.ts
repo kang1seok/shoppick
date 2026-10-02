@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function sitemap() {
-  const baseUrl = "https://sandamanda.vercel.app"; // 실제 배포 URL로 변경 필요
+  const baseUrl = "https://sandamanda.vercel.app"; // 실제 배포 URL
 
   // 정적 라우트
   const routes = ["", "/deals", "/search"].map((route) => ({
