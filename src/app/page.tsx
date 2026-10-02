@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-export const revalidate = 3600; // 1시간마다 재생성
+export const revalidate = 0; // 임시로 캐싱 비활성화 (실시간 반영)
 
 interface ArticleRow {
   id: string;
