@@ -18,8 +18,9 @@ export async function publishArticle(articleId: string): Promise<void> {
     throw new Error(`Failed to fetch article: ${fetchError?.message}`);
   }
 
-  if (article.status !== "review") {
-    throw new Error(`Article is not in 'review' status (current: ${article.status})`);
+  // 검수 대기(draft) 또는 승인(review) 상태의 글만 발행 가능
+  if (article.status !== "draft" && article.status !== "review") {
+    throw new Error(`Article cannot be published from '${article.status}' status`);
   }
 
   // 2. 상태를 published로 변경

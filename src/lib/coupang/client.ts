@@ -54,7 +54,12 @@ export async function fetchCoupangApi<T>(method: string, endpoint: string, body?
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Coupang API Error: ${response.status} ${response.statusText} - ${errorText}`);
+        const err = new Error(`Coupang API Error: ${response.status} ${response.statusText} - ${errorText}`);
+        // 4xx(429 제외)는 재시도해도 같은 결과 → 호출 한도만 소모하므로 즉시 실패
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          throw Object.assign(err, { noRetry: true });
+        }
+        throw err;
       }
 
       const data = await response.json();
@@ -63,9 +68,12 @@ export async function fetchCoupangApi<T>(method: string, endpoint: string, body?
     } catch (error) {
       attempt++;
       console.error(`[Coupang API] Error on attempt ${attempt}:`, error);
-      
-      if (attempt >= MAX_RETRIES) {
-        throw new Error(`Failed to fetch Coupang API after ${MAX_RETRIES} attempts.`);
+
+      const noRetry = error instanceof Error && (error as Error & { noRetry?: boolean }).noRetry;
+      if (noRetry || attempt >= MAX_RETRIES) {
+        throw new Error(
+          `Failed to fetch Coupang API after ${attempt} attempt(s): ${error instanceof Error ? error.message : String(error)}`
+        );
       }
       
       // 5초 대기 후 재시도

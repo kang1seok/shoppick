@@ -6,11 +6,22 @@ import { Button } from "@/components/ui/button";
 export const revalidate = 0; // 항상 최신 데이터
 
 export default async function AdminKeywordsPage() {
-  const { data: keywords } = await supabaseAdmin
+  const { data } = await supabaseAdmin
     .from("keywords")
     .select("id, keyword, source, status, final_score, search_volume, created_at, niches(name)")
     .order("created_at", { ascending: false })
     .limit(100);
+
+  const keywords = (data || []) as unknown as {
+    id: string;
+    keyword: string;
+    source: string;
+    status: string;
+    final_score: number | null;
+    search_volume: number | null;
+    created_at: string;
+    niches: { name: string } | null;
+  }[];
 
   return (
     <div className="space-y-6">
@@ -33,7 +44,7 @@ export default async function AdminKeywordsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {keywords?.map((kw: { id: string; keyword: string; source: string; status: string; final_score: number; search_volume: number; created_at: string; niches: { name: string } }) => (
+            {keywords.map((kw) => (
               <TableRow key={kw.id}>
                 <TableCell className="font-medium">
                   {kw.keyword}
@@ -62,7 +73,7 @@ export default async function AdminKeywordsPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {!keywords?.length && (
+            {!keywords.length && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   수집된 키워드가 없습니다.

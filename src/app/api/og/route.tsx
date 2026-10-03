@@ -3,6 +3,18 @@ import { NextRequest } from 'next/server';
 
 export const runtime = 'edge';
 
+const ALLOWED_IMAGE_HOSTS = ['ads-partners.coupang.com', 'thumbnail.coupangcdn.com'];
+
+function isAllowedImageUrl(url: string | null): url is string {
+  if (!url) return false;
+  try {
+    const { protocol, hostname } = new URL(url);
+    return protocol === 'https:' && (ALLOWED_IMAGE_HOSTS.includes(hostname) || hostname.endsWith('.coupangcdn.com'));
+  } catch {
+    return false;
+  }
+}
+
 // Font caching outside the request handler
 let fontData: ArrayBuffer | null = null;
 
@@ -11,7 +23,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const title = searchParams.get('title') || '산다만다 쇼핑 가이드';
     const keyword = searchParams.get('keyword') || '추천 가이드';
-    const imageUrl = searchParams.get('imageUrl');
+    // 임의 URL을 서버가 가져오지 않도록 쿠팡 이미지 호스트만 허용
+    const rawImageUrl = searchParams.get('imageUrl');
+    const imageUrl = isAllowedImageUrl(rawImageUrl) ? rawImageUrl : null;
     const isSquare = searchParams.get('aspect') === 'square';
     const width = isSquare ? 1080 : 1200;
     const height = isSquare ? 1080 : 630;
@@ -55,6 +69,7 @@ export async function GET(req: NextRequest) {
         >
           {/* Product Image (Huge, right bottom) */}
           {imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element -- next/og renders plain <img>
             <img
               src={imageUrl}
               alt={title}
@@ -145,7 +160,7 @@ export async function GET(req: NextRequest) {
         ],
       }
     );
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('OG Image Generation Error:', e);
     return new Response('Failed to generate image', { status: 500 });
   }

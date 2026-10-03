@@ -25,8 +25,8 @@ export interface ProductSearchResult {
   price: number;
   imageUrl: string;
   productUrl: string;
-  rating: number;      // Note: search API doesn't always provide rating/review count directly.
-  reviewCount: number; // We'll mock or set default if not available from basic search
+  rating: number | null;      // null = not provided by the search API (unknown, not zero)
+  reviewCount: number | null;
   isRocket: boolean;
 }
 
@@ -52,9 +52,9 @@ export async function searchProducts(
     price: item.productPrice,
     imageUrl: item.productImage,
     productUrl: item.productUrl,
-    // 실제 쿠팡 파트너스 API 상품 검색 응답에 rating, reviewCount가 없을 수 있으므로 임시 0 처리
-    rating: 0,
-    reviewCount: 0,
+    // 쿠팡 파트너스 상품 검색 API는 평점/리뷰 수를 제공하지 않음 → 0이 아닌 "알 수 없음"(null)으로 처리
+    rating: null,
+    reviewCount: null,
     isRocket: item.isRocket,
   }));
 }

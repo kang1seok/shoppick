@@ -5,8 +5,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // 실제 환경에서는 어드민 세션 검증이 필요합니다.
-  // 여기서는 간단화를 위해 패스하거나 API 키를 검증할 수 있습니다.
+  // 인증은 src/middleware.ts (Basic Auth)에서 처리
   
   const resolvedParams = await params;
   const articleId = resolvedParams.id;

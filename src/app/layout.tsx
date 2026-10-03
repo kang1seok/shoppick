@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { SITE_URL } from "@/lib/site";
 
 const notoSansKr = Noto_Sans_KR({
   subsets: ["latin"],
@@ -12,6 +13,7 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL), // OG 이미지 등 상대 URL을 절대 URL로 변환
   title: "산다만다 - AI 자동화 쇼핑 가이드",
   description: "쿠팡 최저가 비교 및 추천 가이드",
   verification: {
@@ -29,9 +31,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <head>
-        <meta charSet="utf-8" />
-      </head>
       <body className={cn("min-h-screen font-sans antialiased flex flex-col", notoSansKr.variable)}>
         <Header />
         <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-8">

@@ -25,7 +25,7 @@ export async function getRelatedKeywords(keyword: string): Promise<string[]> {
 
     // JSON 응답 구조: data.items[0] 배열 안에 추천 검색어 배열들이 들어있음
     if (data.items && data.items[0]) {
-      data.items[0].forEach((item: any) => {
+      (data.items[0] as string[][]).forEach((item) => {
         const kw = item[0];
         if (kw && !relatedKeywords.includes(kw) && kw !== keyword) {
           relatedKeywords.push(kw);

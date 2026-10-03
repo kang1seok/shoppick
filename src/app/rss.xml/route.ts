@@ -1,7 +1,8 @@
+import { SITE_URL } from "@/lib/site";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 export async function GET() {
-  const baseUrl = "https://sandamanda.vercel.app";
+  const baseUrl = SITE_URL;
   
   const { data: articles } = await supabaseAdmin
     .from("articles")

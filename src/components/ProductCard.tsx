@@ -1,24 +1,26 @@
 import Image from "next/image";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { AffiliateLink } from "@/components/AffiliateLink";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Star } from "lucide-react";
 
 interface ProductCardProps {
+  articleId: string;
   product: {
+    productId: string;
     productName: string;
     price: number;
-    rating: number;
-    reviewCount: number;
+    rating: number | null;
+    reviewCount: number | null;
     isRocket: boolean;
     imageUrl: string;
     deeplinkUrl: string;
   };
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ articleId, product }: ProductCardProps) {
   return (
     <Card className="flex flex-col overflow-hidden h-full">
       <CardHeader className="p-0">
@@ -42,28 +44,32 @@ export function ProductCard({ product }: ProductCardProps) {
         <h3 className="font-medium text-sm line-clamp-2 leading-tight">
           {product.productName}
         </h3>
-        <div className="mt-auto pt-2 flex items-center gap-2">
-          <div className="flex items-center text-yellow-500">
-            <Star className="w-4 h-4 fill-current" />
-            <span className="text-sm font-semibold ml-1">{product.rating.toFixed(1)}</span>
+        {product.rating !== null && (
+          <div className="mt-auto pt-2 flex items-center gap-2">
+            <div className="flex items-center text-yellow-500">
+              <Star className="w-4 h-4 fill-current" />
+              <span className="text-sm font-semibold ml-1">{product.rating.toFixed(1)}</span>
+            </div>
+            {product.reviewCount !== null && (
+              <span className="text-xs text-muted-foreground">
+                ({product.reviewCount.toLocaleString()})
+              </span>
+            )}
           </div>
-          <span className="text-xs text-muted-foreground">
-            ({product.reviewCount.toLocaleString()})
-          </span>
-        </div>
-        <div className="font-bold text-lg">
+        )}
+        <div className={cn("font-bold text-lg", product.rating === null && "mt-auto pt-2")}>
           {product.price.toLocaleString()}원
         </div>
       </CardContent>
       <CardFooter className="p-4 pt-0">
-        <Link 
-          href={product.deeplinkUrl} 
-          target="_blank" 
-          rel="noopener noreferrer"
+        <AffiliateLink
+          href={product.deeplinkUrl}
+          articleId={articleId}
+          productId={product.productId}
           className={cn(buttonVariants(), "w-full font-bold")}
         >
           쿠팡에서 보기
-        </Link>
+        </AffiliateLink>
       </CardFooter>
     </Card>
   );

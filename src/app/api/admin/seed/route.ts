@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
-export async function POST(request: Request) {
-  // 실제 프로덕션에서는 관리자 권한 검증이 필수입니다.
-  // 여기서는 MVP 테스트를 위해 허용합니다.
+export async function POST() {
+  // 인증은 src/middleware.ts (Basic Auth)에서 처리
 
   try {
     // 1. 카테고리(Niches) 삽입
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, message: "Seed data inserted successfully." });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 });
   }
 }

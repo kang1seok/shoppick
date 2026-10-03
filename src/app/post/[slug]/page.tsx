@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { ArticleContent } from "@/components/ArticleContent";
@@ -10,57 +11,46 @@ interface PostPageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateMetadata({ params }: PostPageProps) {
-  const resolvedParams = await params;
-  const decodedSlug = decodeURIComponent(resolvedParams.slug);
-  const { data: article } = await supabaseAdmin
-    .from("articles")
-    .select("title, meta_description, keywords(keyword), article_products(products(image_url))")
-    .eq("slug", decodedSlug)
-    .single();
+interface ArticleRow {
+  id: string;
+  title: string;
+  meta_description: string | null;
+  content_markdown: string;
+  published_at: string;
+  keywords: { keyword: string } | null;
+}
 
-  if (!article) return { title: "Not Found" };
-
-  const keyword = (article.keywords as any)?.keyword || '추천 가이드';
-  const imageUrl = (article.article_products as any)?.[0]?.products?.image_url || '';
-  const ogUrl = `/api/og?title=${encodeURIComponent(article.title)}&keyword=${encodeURIComponent(keyword)}&imageUrl=${encodeURIComponent(imageUrl)}`;
-
-  return {
-    title: `${article.title} | 산다만다`,
-    description: article.meta_description,
-    openGraph: {
-      title: article.title,
-      description: article.meta_description || '',
-      images: [
-        {
-          url: ogUrl,
-          width: 1200,
-          height: 630,
-          alt: article.title,
-        },
-      ],
-    },
+interface ArticleProductRow {
+  rank: number;
+  reason: string | null;
+  products: {
+    id: string;
+    product_name: string;
+    image_url: string;
+    product_url: string | null;
+    affiliate_links: { deeplink_url: string; created_at: string }[];
+    product_snapshots: {
+      price: number | null;
+      rating: number | null;
+      review_count: number | null;
+      is_rocket: boolean | null;
+      fetched_at: string;
+    }[];
   };
 }
 
-export default async function PostPage({ params }: PostPageProps) {
-  const resolvedParams = await params;
-  const decodedSlug = decodeURIComponent(resolvedParams.slug);
-  
-  // 1. 글 정보 조회
-  const { data: article } = await supabaseAdmin
+async function getArticle(slug: string): Promise<ArticleRow | null> {
+  const { data } = await supabaseAdmin
     .from("articles")
-    .select("id, title, content_markdown, published_at, updated_at, keywords(keyword)")
-    .eq("slug", decodedSlug)
-    .eq("status", "published")
-    .single();
+    .select("id, title, meta_description, content_markdown, published_at, keywords(keyword)")
+    .eq("slug", slug)
+    .eq("status", "published") // 미발행(draft) 글의 메타데이터 노출 방지
+    .maybeSingle();
+  return data as unknown as ArticleRow | null;
+}
 
-  if (!article) {
-    notFound();
-  }
-
-  // 2. 글에 포함된 상품 목록 조회 (article_products -> products, affiliate_links)
-  const { data: articleProducts } = await supabaseAdmin
+async function getArticleProducts(articleId: string) {
+  const { data } = await supabaseAdmin
     .from("article_products")
     .select(`
       rank,
@@ -69,42 +59,70 @@ export default async function PostPage({ params }: PostPageProps) {
         id,
         product_name,
         image_url,
-        affiliate_links (deeplink_url),
-        product_snapshots (price, rating, review_count, is_rocket)
+        product_url,
+        affiliate_links (deeplink_url, created_at),
+        product_snapshots (price, rating, review_count, is_rocket, fetched_at)
       )
     `)
-    .eq("article_id", article.id)
+    .eq("article_id", articleId)
     .order("rank", { ascending: true });
 
-  // 3. 데이터 가공
-  const products = articleProducts?.map((ap: unknown) => {
-    const apData = ap as {
-      rank: number;
-      reason: string;
-      products: {
-        id: string;
-        product_name: string;
-        image_url: string;
-        affiliate_links: { deeplink_url: string }[];
-        product_snapshots: { price: number; rating: number; review_count: number; is_rocket: boolean }[];
-      };
-    };
-    const p = apData.products;
-    const snap = p.product_snapshots?.[0] || {};
-    const link = p.affiliate_links?.[0]?.deeplink_url || "#";
-    
+  return ((data || []) as unknown as ArticleProductRow[]).map((ap) => {
+    const p = ap.products;
+    // 스냅샷은 파이프라인 실행마다 누적되므로 가장 최근 것을 사용
+    const snap = [...(p.product_snapshots || [])].sort(
+      (a, b) => new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime()
+    )[0];
+    // 딥링크가 없으면 검색 API의 productUrl(파트너스 추적 링크)로 대체
+    const link = p.affiliate_links?.[0]?.deeplink_url || p.product_url || "#";
+
     return {
-      rank: apData.rank,
+      rank: ap.rank,
+      productId: p.id,
       productName: p.product_name,
-      price: snap.price || 0,
-      rating: snap.rating || 0,
-      reviewCount: snap.review_count || 0,
-      isRocket: snap.is_rocket || false,
+      price: snap?.price ?? 0,
+      // 0은 "데이터 없음"을 의미했던 과거 데이터이므로 null로 취급
+      rating: snap?.rating ? snap.rating : null,
+      reviewCount: snap?.review_count ? snap.review_count : null,
+      isRocket: snap?.is_rocket ?? false,
       imageUrl: p.image_url,
       deeplinkUrl: link,
-      reason: apData.reason,
+      reason: ap.reason,
     };
-  }) || [];
+  });
+}
+
+export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const decodedSlug = decodeURIComponent(slug);
+  const article = await getArticle(decodedSlug);
+  if (!article) return { title: "Not Found" };
+
+  const products = await getArticleProducts(article.id);
+  const keyword = article.keywords?.keyword || "추천 가이드";
+  const imageUrl = products[0]?.imageUrl || "";
+  const ogUrl = `/api/og?title=${encodeURIComponent(article.title)}&keyword=${encodeURIComponent(keyword)}&imageUrl=${encodeURIComponent(imageUrl)}`;
+
+  return {
+    title: `${article.title} | 산다만다`,
+    description: article.meta_description || undefined,
+    alternates: { canonical: `/post/${decodedSlug}` },
+    openGraph: {
+      type: "article",
+      title: article.title,
+      description: article.meta_description || "",
+      publishedTime: article.published_at,
+      images: [{ url: ogUrl, width: 1200, height: 630, alt: article.title }],
+    },
+  };
+}
+
+export default async function PostPage({ params }: PostPageProps) {
+  const { slug } = await params;
+  const article = await getArticle(decodeURIComponent(slug));
+  if (!article) notFound();
+
+  const products = await getArticleProducts(article.id);
 
   return (
     <article className="max-w-3xl mx-auto py-8">
@@ -115,8 +133,12 @@ export default async function PostPage({ params }: PostPageProps) {
         </h1>
         <div className="flex justify-center items-center gap-4 text-sm text-muted-foreground">
           <span>{new Date(article.published_at).toLocaleDateString("ko-KR")}</span>
-          <span>•</span>
-          <span>키워드: {(article.keywords as { keyword: string })?.keyword}</span>
+          {article.keywords?.keyword && (
+            <>
+              <span>•</span>
+              <span>키워드: {article.keywords.keyword}</span>
+            </>
+          )}
         </div>
       </header>
 
@@ -124,7 +146,7 @@ export default async function PostPage({ params }: PostPageProps) {
       {products.length > 0 && (
         <section className="mb-12">
           <h2 className="text-2xl font-bold mb-6">한눈에 보는 TOP {products.length} 비교</h2>
-          <ProductComparisonTable products={products} />
+          <ProductComparisonTable articleId={article.id} products={products} />
         </section>
       )}
 
@@ -143,7 +165,7 @@ export default async function PostPage({ params }: PostPageProps) {
                 <div className="absolute -top-4 -left-4 z-10 w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold shadow-lg">
                   {product.rank}
                 </div>
-                <ProductCard product={product} />
+                <ProductCard articleId={article.id} product={product} />
               </div>
             ))}
           </div>

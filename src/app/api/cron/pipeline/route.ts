@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { selectDailyKeywords } from "@/lib/pipeline/keyword-engine";
 import { searchAndScoreProducts } from "@/lib/pipeline/product-engine";
 import { generateArticles } from "@/lib/pipeline/content-engine";
@@ -8,14 +9,25 @@ export const maxDuration = 60; // Vercel 서버리스 함수 타임아웃을 최
 
 
 export async function GET(request: Request) {
-  // 인증: CRON_SECRET 헤더 검증
+  // 인증: CRON_SECRET 헤더 검증 (미설정 시에도 거부 - fail closed)
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    console.error("[Pipeline Cron] CRON_SECRET is not configured; refusing to run.");
+    return NextResponse.json({ error: "Cron secret not configured" }, { status: 503 });
+  }
+
   const authHeader = request.headers.get("authorization");
-  if (
-    process.env.CRON_SECRET &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // 타임아웃으로 강제 종료되어 running 상태로 남은 이전 작업 정리 (maxDuration보다 충분히 오래된 것)
+  const staleBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await supabaseAdmin
+    .from("jobs")
+    .update({ status: "failed", error_message: "Timed out (stale running job)", finished_at: new Date().toISOString() })
+    .eq("status", "running")
+    .lt("started_at", staleBefore);
 
   // 작업 큐에 시작 기록
   const { data: job, error: jobError } = await supabaseAdmin
@@ -61,6 +73,11 @@ export async function GET(request: Request) {
     };
 
     await finishJob(jobId, "completed", result);
+    // 자동 발행된 글이 있으면 홈/사이트맵 캐시 갱신
+    if (articles.some((a) => a.status === "published")) {
+      revalidatePath("/");
+      revalidatePath("/sitemap.xml");
+    }
     console.log(`[Pipeline Cron] Finished successfully.`);
     return NextResponse.json({ status: "success", result });
 

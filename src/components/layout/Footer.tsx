@@ -12,8 +12,7 @@ export function Footer() {
             </p>
           </div>
           <div className="flex gap-4 text-sm text-muted-foreground">
-            <Link href="/terms" className="hover:underline">이용약관</Link>
-            <Link href="/privacy" className="hover:underline">개인정보처리방침</Link>
+            <Link href="/rss.xml" className="hover:underline">RSS</Link>
           </div>
         </div>
         

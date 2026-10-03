@@ -7,10 +7,19 @@ import Link from "next/link";
 export const revalidate = 0; // 항상 최신 데이터
 
 export default async function AdminArticlesPage() {
-  const { data: articles } = await supabaseAdmin
+  const { data } = await supabaseAdmin
     .from("articles")
     .select("id, title, slug, status, created_at, keywords(keyword)")
     .order("created_at", { ascending: false });
+
+  const articles = (data || []) as unknown as {
+    id: string;
+    title: string;
+    slug: string;
+    status: string;
+    created_at: string;
+    keywords: { keyword: string } | null;
+  }[];
 
   return (
     <div className="space-y-6">
@@ -30,7 +39,7 @@ export default async function AdminArticlesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {articles?.map((article: { id: string; title: string; slug: string; status: string; created_at: string; keywords: { keyword: string } }) => (
+            {articles.map((article) => (
               <TableRow key={article.id}>
                 <TableCell className="font-medium">
                   {article.title}
@@ -53,7 +62,7 @@ export default async function AdminArticlesPage() {
                     <Link href={`/post/${article.slug}`} target="_blank" className={buttonVariants({ variant: "outline", size: "sm" })}>
                       보기
                     </Link>
-                    {article.status === 'review' && (
+                    {(article.status === 'draft' || article.status === 'review') && (
                       <form action={`/api/articles/${article.id}/publish`} method="POST">
                         <Button type="submit" size="sm">발행</Button>
                       </form>
@@ -62,7 +71,7 @@ export default async function AdminArticlesPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {!articles?.length && (
+            {!articles.length && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                   게시글이 없습니다.

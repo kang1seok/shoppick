@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Settings, BarChart, FileText, Key, LogOut } from "lucide-react";
+import { BarChart, FileText, Key, LineChart, LogOut } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  // 실제 환경에서는 NextAuth.js 기반 인증 또는 Middleware 보호 처리가 들어갑니다.
-  // MVP 버전이므로 단순 UI만 제공합니다.
+  // 접근 제어는 src/middleware.ts (Basic Auth)에서 처리
   
   return (
     <div className="flex h-screen bg-gray-50 text-gray-900">
@@ -25,9 +24,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Key className="w-5 h-5 mr-3 text-gray-500" />
             키워드 관리
           </Link>
-          <Link href="/admin/settings" className="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-100">
-            <Settings className="w-5 h-5 mr-3 text-gray-500" />
-            설정
+          <Link href="/admin/analytics" className="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-100">
+            <LineChart className="w-5 h-5 mr-3 text-gray-500" />
+            실적 분석
           </Link>
         </nav>
         <div className="p-4 border-t">
