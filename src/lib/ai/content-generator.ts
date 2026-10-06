@@ -26,7 +26,7 @@ export interface GeneratedArticle {
 /**
  * OpenAI API 호출 래퍼
  */
-async function callOpenAI(
+export async function callOpenAI(
   messages: { role: string; content: string }[],
   options: { temperature?: number; json?: boolean } = {}
 ): Promise<string> {

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../supabase/server";
 import { getRelatedKeywords } from "../naver/keywords";
 import { getSearchTrends } from "../naver/datalab";
+import { discoverBestsellerKeywords } from "./bestseller-keywords";
 
 export interface Keyword {
   id: string;
@@ -65,44 +66,57 @@ export async function selectDailyKeywords(): Promise<Keyword[]> {
 
     const allKeywordsToScore: Keyword[] = pendingKeywords ? [...pendingKeywords] : [];
 
-    // 2. 연관 검색어 수집 및 저장 (seed별 자동완성 조회는 병렬)
+    // 중복 판정은 공백을 무시하고 비교 ("무선 이어폰 추천" == "무선이어폰추천")
+    const normalize = (k: string) => k.replace(/\s+/g, "");
+    const knownKeywords = new Set((seedCandidates || []).map((k) => normalize(k.keyword)));
+    const MAX_NEW_PER_RUN = 30; // 새 키워드가 한 번에 쏟아져 DataLab 호출/실행 시간이 늘어나는 것을 방지
+
+    // niche slug -> id (쿠팡 베스트셀러 키워드의 카테고리 매핑용)
+    const { data: niches } = await supabaseAdmin.from("niches").select("id, slug");
+    const nicheIdBySlug = new Map((niches || []).map((n) => [n.slug, n.id]));
+
+    // 2. 신규 키워드 후보 수집: 네이버 자동완성(병렬) + 대기 키워드가 적으면 쿠팡 베스트셀러
+    const candidates: { keyword: string; niche_id: string; source: string }[] = [];
+    const addCandidate = (keyword: string, nicheId: string | undefined, source: string) => {
+      const key = normalize(keyword);
+      if (!nicheId || knownKeywords.has(key)) return;
+      knownKeywords.add(key);
+      candidates.push({ keyword, niche_id: nicheId, source });
+    };
+
     const relatedLists = await Promise.all(
       baseKeywordsForRelated.map((seed) => getRelatedKeywords(seed.keyword))
     );
-
-    const candidates = new Map<string, string>(); // keyword -> niche_id
     relatedLists.forEach((related, i) => {
-      for (const kw of related) {
-        if (!candidates.has(kw)) candidates.set(kw, baseKeywordsForRelated[i].niche_id);
-      }
+      for (const kw of related) addCandidate(kw, baseKeywordsForRelated[i].niche_id, "related");
     });
 
-    if (candidates.size > 0) {
-      // keyword 컬럼에 UNIQUE 제약이 없으므로 기존 키워드를 한 번에 조회해 중복 제외
-      const { data: existing } = await supabaseAdmin
-        .from("keywords")
-        .select("keyword")
-        .in("keyword", [...candidates.keys()]);
-      const existingSet = new Set((existing || []).map((e) => e.keyword));
-
-      const toInsert = [...candidates]
-        .filter(([kw]) => !existingSet.has(kw))
-        .map(([kw, nicheId]) => ({
-          niche_id: nicheId,
-          keyword: kw,
-          source: "related",
-          status: "pending",
-        }));
-
-      if (toInsert.length > 0) {
-        const { data: inserted, error: insertError } = await supabaseAdmin
-          .from("keywords")
-          .insert(toInsert)
-          .select("*");
-        if (insertError) console.error(`[Keyword Engine] Failed to insert related keywords:`, insertError);
-        if (inserted) allKeywordsToScore.push(...inserted);
+    if ((pendingKeywords?.length ?? 0) < 10) {
+      console.log(`[Keyword Engine] Few pending keywords; discovering from Coupang bestsellers.`);
+      try {
+        const fromBest = await discoverBestsellerKeywords((seedCandidates || []).map((k) => k.keyword));
+        for (const d of fromBest) addCandidate(d.keyword, nicheIdBySlug.get(d.nicheSlug), "shopping_insight");
+      } catch (error) {
+        console.error(`[Keyword Engine] Bestseller discovery failed:`, error);
       }
     }
+
+    if (candidates.length > 0) {
+      // 베스트셀러 기반(구매 의도가 확실한) 키워드를 먼저 넣고, 나머지는 자동완성 후보로 채움
+      candidates.sort((a, b) => Number(b.source === "shopping_insight") - Number(a.source === "shopping_insight"));
+      const toInsert = candidates.slice(0, MAX_NEW_PER_RUN).map((c) => ({ ...c, status: "pending" }));
+
+      const { data: inserted, error: insertError } = await supabaseAdmin
+        .from("keywords")
+        .insert(toInsert)
+        .select("*");
+      if (insertError) console.error(`[Keyword Engine] Failed to insert new keywords:`, insertError);
+      if (inserted) allKeywordsToScore.push(...inserted);
+      console.log(`[Keyword Engine] Inserted ${inserted?.length ?? 0} new keywords (candidates: ${candidates.length}).`);
+    }
+
+    // 점수화 대상은 실행당 최대 24개로 제한 (DataLab 호출 6회 이내 → 60초 제한 대응)
+    if (allKeywordsToScore.length > 24) allKeywordsToScore.length = 24;
 
     console.log(`[Keyword Engine] Total keywords to score: ${allKeywordsToScore.length}`);
     
